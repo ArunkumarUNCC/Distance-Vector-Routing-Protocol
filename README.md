@@ -6,9 +6,11 @@ Simulation of Distance Vector Routing Protocol
 Implemented in Python 3.5.2
 
 RUN DRIVER
-python DriverApp.py -f <filename> -x <Driver_IP> -y <Driver_Port> -i <Source_Folder_of_Network_Configuration> -d <Source_Folder_of_Distance_Values_Of_Routers>
+python DriverApp.py -f <filename> -x <Driver_IP> -y <Driver_Port> -i <Source_Folder_of_Network_Configuration> -d <Source_Folder_of_Distance_Values_Of_Routers> -p <poisson_flag>
 (eg) python DriverApp.py -x 127.0.0.1 -y 8080
 
+Simple Normal Execution:
+  python DriverApp.py
 
-TERMINATE THE SIMULATION
-Just stop the Driver program to close the entire simulation
+Simple Poisson Reverse execution:
+  python DriverApp.py -p True
