@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """""
-@File:           router.py
-@Description:    Router Application to executer Distance Vector Routing Protocol
+@File:           poisson_router.py
+@Description:    Router Application to execute Distance Vector Routing Protocol with Poisson Reverse feature
 @Authors:        Arunkumar Bagavathi, Chetan Borse
 @EMail:          abagavat@uncc.edu, chetanborse2106@gmail.com
 @Created_on:     04/23/2017
@@ -17,7 +17,6 @@ import socket
 import sys
 import select
 import struct
-import threading
 import time
 
 from threading import Thread
@@ -52,6 +51,7 @@ class Router(object):
         self.listenerFlag = False
         self.neighborDetails = {}
         self.routerIDs = {}
+        self.poisonnedData = {}
 
         self.neighborDistances = {}
         self.routerDistances = []
@@ -149,8 +149,10 @@ class Router(object):
         # Reading neighbor distances from the given file path and updating the routing table
         with open(self.routerInfoFile) as f:
             fileLines = f.readlines()
+
             for i in range(1, len(fileLines)):
                 neighbors = fileLines[i].split()
+                self.poisonnedData[neighbors[0]] = []
                 self.neighborDistances[self.routerIDs[neighbors[0]]] = int(neighbors[1])
                 self.routerDistances[self.routerID][self.routerIDs[neighbors[0]]] = int(neighbors[1])
 
@@ -188,7 +190,14 @@ class Router(object):
                 nextHopRouterName = ""
 
             print("Shortest Path '%s'-'%s': The next hop is '%s' and the cost is %s" %(self.routerName,destinationRouterName,nextHopRouterName,str(minimumDist)))
+
+            # Determining at which position in the data to be set to infinity for a particular neighbor
+            if destinationRouterName != nextHopRouterName:
+                if nextHopRouterName in self.poisonnedData:
+                    self.poisonnedData[nextHopRouterName].append(self.routerIDs[destinationRouterName])
+
             self.routerDistances[self.routerID][i] = minimumDist
+
         print()
 
         newVector = self.routerDistances[self.routerID]
@@ -200,12 +209,21 @@ class Router(object):
 
     # Initializing packet sending to other routers
     def sendUpdate(self):
-        data = ','.join(map(str,self.routerDistances[self.routerIDs[self.routerName]]))
+        # data = ','.join(map(str,self.routerDistances[self.routerIDs[self.routerName]]))
 
         log.info("Temporarily stopping the router to listen incoming data")
         self.setListenerFlag(False)
 
         for neighbor in self.neighborDetails:
+            toSend = deepcopy(self.routerDistances[self.routerIDs[self.routerName]])
+
+            # Setting infinity to particular location
+            if neighbor in self.poisonnedData:
+                for poisson in self.poisonnedData[neighbor]:
+                    toSend[poisson] = sys.maxsize
+
+            data = ','.join(map(str,toSend))
+
             details = self.neighborDetails[neighbor]
             neighborIP = details[0]
             neighborPort = int(details[1])

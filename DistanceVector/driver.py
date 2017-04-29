@@ -16,6 +16,7 @@ import logging
 import socket
 import select
 import struct
+import signal
 
 from sys import executable
 from subprocess import Popen,CREATE_NEW_CONSOLE
@@ -70,6 +71,8 @@ class Driver(object):
         self.routers={}
         self.routerIP={}
         self.routerPort={}
+
+        self.terminateNow = False
 
 
     def start(self):
@@ -140,7 +143,7 @@ class Driver(object):
                     self.routers[routerInfo[0]] = str(router)
 
     # Starting all routers
-    def startRouters(self):
+    def startRouters(self,poisson_simulation):
         log.info("User details about the routers are valid")
         log.info("Starting routers at their specified address")
 
@@ -164,7 +167,17 @@ class Driver(object):
 
                     routerNeighbors = routerNeighbors + neighborName + "<NEIGHBOR>"
 
-            Popen([executable, 'DistanceVector/router.py', routerName,routerIP,str(routerPort),routerInfoFilePath,routerNeighbors,self.driverIP,str(self.driverPort),routerDetails], creationflags=CREATE_NEW_CONSOLE)
+            if poisson_simulation:
+                log.info("Starting the router with poisson reverse configuration enabled")
+
+                Popen(
+                    [executable, 'DistanceVector/poisson_router.py', routerName, routerIP, str(routerPort), routerInfoFilePath,
+                     routerNeighbors, self.driverIP, str(self.driverPort), routerDetails],
+                    creationflags=CREATE_NEW_CONSOLE)
+            else:
+                log.info("Starting the router with poisson reverse configuration disabled")
+
+                Popen([executable, 'DistanceVector/router.py', routerName,routerIP,str(routerPort),routerInfoFilePath,routerNeighbors,self.driverIP,str(self.driverPort),routerDetails], creationflags=CREATE_NEW_CONSOLE)
 
     # Function to initiate the thread
     def monitor(self):
@@ -185,6 +198,14 @@ class Driver(object):
                     else:
                         continue
 
+    def say(self,signal,frame):
+        print("Hello")
+
+    def setTerminator(self,flag):
+        self.terminateNow = True
+
+    def getTerminator(self):
+        return self.terminateNow
 
     # Function to close all running scripts
     def terminateAll(self):
@@ -206,28 +227,34 @@ class MonitorRequests(Thread):
         """
         log.info("Started to monitor requests from routers")
 
-        while True:
-            # Listen for incoming requests from routers infinitely
-            ready = select.select([self.routerSocket], [], [])
+        try:
+            while True:
+                # Listen for incoming requests from routers infinitely
+                ready = select.select([self.routerSocket], [], [])
 
-            # Receive packet
-            try:
-                receivedPacket, senderAddress = self.routerSocket.recvfrom(2048)
-            except Exception as e:
-                log.error("Could not receive UDP packet!")
-                log.debug(e)
-                raise SocketError("Receiving UDP packet failed!")
+                # Receive packet
+                try:
+                    receivedPacket, senderAddress = self.routerSocket.recvfrom(2048)
+                except KeyboardInterrupt as e:
+                    print("Detected Keyboard Interruption")
+                except Exception as e:
+                    log.error("Could not receive UDP packet!")
+                    log.debug(e)
+                    raise SocketError("Receiving UDP packet failed!")
 
-            # Finding who sent the message
-            whoSent = self.driver.findRouterName(senderAddress)
-            log.info("New Message from the router '%s'",whoSent)
+                # Finding who sent the message
+                whoSent = self.driver.findRouterName(senderAddress)
+                log.info("New Message from the router '%s'",whoSent)
 
-            # Parse header fields and payload data from the received packet
-            data,datatype = self.parse(receivedPacket)
+                # Parse header fields and payload data from the received packet
+                data,datatype = self.parse(receivedPacket)
 
-            if datatype == 0:
-                self.routerSocket.close()
-                # self.driver.terminateAll()
+                if datatype == 0:
+                    self.routerSocket.close()
+                    # self.driver.terminateAll()
+
+        except KeyboardInterrupt as e:
+            print("Detected Keyboard Interruption")
 
 
     def parse(self,packet):

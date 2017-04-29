@@ -13,6 +13,7 @@
 
 import os
 import argparse
+import signal
 
 from DistanceVector.driver import Driver
 from DistanceVector.driver import DriverStartError,RouterStartError
@@ -20,6 +21,9 @@ from DistanceVector.driver import InvalidNetworkError
 from DistanceVector.driver import InvalidConfigurationError
 from DistanceVector.driver import FileNotExistError,RouterNotExistError
 from DistanceVector.driver import SocketError
+
+def say(signal,frame):
+    print("Hello")
 
 def DriverApp(**args):
     # Arguments
@@ -29,14 +33,17 @@ def DriverApp(**args):
     driver_port = args["driver_port"]
 
     ddd = args["ddd"]
+    poisson_simulation = args["poisson"]
 
     try:
         driver = Driver(filename,driver_ip,driver_port,www)
 
         driver.start()
         driver.validateNetwork(ddd)
-        driver.startRouters()
+        driver.startRouters(poisson_simulation)
         driver.monitor()
+
+        # signal.signal(signal.SIGINT,driver.say)
 
     except KeyboardInterrupt as e:
         print("Keyboard Interruption detected...Stopping the simulation...")
@@ -73,7 +80,8 @@ if __name__ == "__main__":
                                            -x <driver_ip> \
                                            -y <driver_port> \
                                            -i <ddd> \
-                                           -d <www>')
+                                           -d <www> \
+                                           -p <poisson>')
 
     parser.add_argument("-f", "--filename", type=str, default="RouterNetwork.txt",
                         help="Routers Network Architecture, default: RouterNetwork.txt")
@@ -85,6 +93,8 @@ if __name__ == "__main__":
                         help="Source folder for network configuration, default: /<Current Working Directory>/NetworkConf")
     parser.add_argument("-i", "--ddd", type=str, default=os.path.join(os.getcwd(), "InputDistances"),
                         help="Source folder for distance values between nodes, default: /<Current Working Directory>/InputDistances")
+    parser.add_argument("-p", "--poisson", type=bool, default=True,
+                        help="Show Poisson Reverse simulation")
 
     # Read user inputs
     args = vars(parser.parse_args())
